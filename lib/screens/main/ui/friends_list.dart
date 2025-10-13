@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:odeum_list/components/addFriendButton.dart';
 import '../../../components/friend_card.dart';
 import '../../../models/friend.dart';
+import '../../friend_detail.dart';
 import 'filters.dart';
 
 class FriendsList extends StatelessWidget {
@@ -42,7 +43,12 @@ class FriendsList extends StatelessWidget {
                 return FriendCard(
                   friend: friends[index],
                   onTap: () {
-                    // TODO: Navigate to friend detail screen
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FriendDetailScreen(friend: friends[index]),
+                      ),
+                    );
                   },
                 );
               },

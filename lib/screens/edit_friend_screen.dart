@@ -4,18 +4,19 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
-import '../../../../models/friend.dart';
-import '../../../../models/holiday.dart';
-import '../../../../services/storage_service.dart';
+import '../models/friend.dart';
+import '../models/holiday.dart';
 
-class AddFriendScreen extends StatefulWidget {
-  const AddFriendScreen({super.key});
+class EditFriendScreen extends StatefulWidget {
+  final Friend friend;
+
+  const EditFriendScreen({super.key, required this.friend});
 
   @override
-  State<AddFriendScreen> createState() => _AddFriendScreenState();
+  State<EditFriendScreen> createState() => _EditFriendScreenState();
 }
 
-class _AddFriendScreenState extends State<AddFriendScreen> {
+class _EditFriendScreenState extends State<EditFriendScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
   File? _selectedImage;
@@ -26,11 +27,8 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
 
   final ImagePicker _picker = ImagePicker();
 
-  // Список добавленных праздников
   List<Map<String, dynamic>> _addedHolidays = [];
-
-  // Показывать ли форму добавления праздника
-  bool _showHolidayForm = true;
+  bool _showHolidayForm = false;
 
   final List<String> holidays = [
     'Christmas',
@@ -58,6 +56,32 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _initializeWithFriendData();
+  }
+
+  void _initializeWithFriendData() {
+    _nameController.text = widget.friend.name;
+
+    if (widget.friend.note != null) {
+      _noteController.text = widget.friend.note!;
+    }
+
+    if (widget.friend.imagePath != null && widget.friend.imagePath!.isNotEmpty) {
+      _selectedImage = File(widget.friend.imagePath!);
+    }
+
+    _addedHolidays = widget.friend.holidays.map((holiday) => {
+      'type': holiday.type,
+      'day': holiday.day,
+      'month': holiday.month,
+    }).toList();
+
+    _showHolidayForm = _addedHolidays.isEmpty;
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _noteController.dispose();
@@ -65,12 +89,10 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
   }
 
   Future<void> _pickImageFromGallery() async {
-    // Сначала пробуем image_picker
     try {
       final status = await Permission.photos.request();
 
       if (status.isGranted) {
-        // Разрешение получено, открываем галерею
         final XFile? image = await _picker.pickImage(
           source: ImageSource.gallery,
           imageQuality: 85,
@@ -82,11 +104,9 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
           });
         }
       } else {
-        // Если разрешение отклонено, используем file_picker
         await _pickImageWithFilePicker();
       }
     } catch (e) {
-      // Если image_picker не работает, используем file_picker
       await _pickImageWithFilePicker();
     }
   }
@@ -108,7 +128,6 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
     }
   }
 
-
   void _addHoliday() {
     if (_isDateSelected) {
       setState(() {
@@ -118,7 +137,6 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
           'month': _selectedMonth,
         });
 
-        // Сброс формы
         _selectedHoliday = 'Birthday';
         _selectedDay = 25;
         _selectedMonth = 'July';
@@ -152,7 +170,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
-          'Adding a friend',
+          'Editing friend',
           style: TextStyle(
             color: Colors.black,
             fontSize: 18,
@@ -176,7 +194,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
                 const SizedBox(height: 32),
                 _buildNoteSection(),
                 const SizedBox(height: 40),
-                _buildAddFriendButton(),
+                _buildSaveButton(),
               ],
             ),
           ),
@@ -366,7 +384,6 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Отображение добавленных праздников
         ..._addedHolidays.asMap().entries.map((entry) {
           int index = entry.key;
           Map<String, dynamic> holiday = entry.value;
@@ -427,9 +444,8 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
               ],
             ),
           );
-        }).toList(),
+        }),
 
-        // Форма добавления нового праздника
         if (_showHolidayForm) ...[
           Column(
             children: [
@@ -636,11 +652,11 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
     );
   }
 
-  Widget _buildAddFriendButton() {
+  Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _saveFriend,
+        onPressed: _updateFriend,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
@@ -651,22 +667,20 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
           elevation: 0,
         ),
         child: const Text(
-          'Add friend',
+          'Save changes',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
         ),
       ),
     );
   }
 
-  Future<void> _saveFriend() async {
-    // Validate required fields
+  Future<void> _updateFriend() async {
     if (_nameController.text.trim().isEmpty) {
       _showErrorDialog('Please enter a friend\'s name');
       return;
     }
 
     try {
-      // Convert added holidays to Holiday models
       List<Holiday> holidays = _addedHolidays.map((holidayMap) {
         return Holiday.create(
           type: holidayMap['type'],
@@ -675,30 +689,25 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
         );
       }).toList();
 
-      // Create friend model
-      final friend = Friend.create(
-        name: _nameController.text.trim(),
-        imagePath: _selectedImage?.path,
-        holidays: holidays,
-        note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
-      );
+      widget.friend.updateName(_nameController.text.trim());
+      widget.friend.updateImagePath(_selectedImage?.path);
+      widget.friend.updateNote(_noteController.text.trim().isEmpty ? null : _noteController.text.trim());
 
-      // Save to Hive
-      await StorageService.addFriend(friend);
+      widget.friend.holidays.clear();
+      widget.friend.holidays.addAll(holidays);
+      await widget.friend.save();
 
-      // Show success and go back
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Friend added successfully!'),
+            content: Text('Friend updated successfully!'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
-      // Show error
-      _showErrorDialog('Failed to add friend. Please try again.');
+      _showErrorDialog('Failed to update friend. Please try again.');
     }
   }
 
