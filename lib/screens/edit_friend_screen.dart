@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../models/friend.dart';
 import '../models/holiday.dart';
 
@@ -674,6 +676,34 @@ class _EditFriendScreenState extends State<EditFriendScreen> {
     );
   }
 
+  Future<String?> _saveImagePermanently(File imageFile) async {
+    try {
+      // Get the app documents directory (consistent with Hive storage)
+      final Directory appDir = await getApplicationDocumentsDirectory();
+
+      // Create a subfolder for friend images if it doesn't exist
+      final Directory imageDir = Directory('${appDir.path}/friend_images');
+      if (!await imageDir.exists()) {
+        await imageDir.create(recursive: true);
+      }
+
+      // Generate a unique filename using timestamp
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String extension = path.extension(imageFile.path);
+      final String newFileName = 'friend_$timestamp$extension';
+
+      // Copy the image to the permanent location
+      final String newPath = '${imageDir.path}/$newFileName';
+      await imageFile.copy(newPath);
+
+      // Return only the filename for relative path storage
+      return 'friend_images/$newFileName';
+    } catch (e) {
+      debugPrint('Error saving image permanently: $e');
+      return null;
+    }
+  }
+
   Future<void> _updateFriend() async {
     if (_nameController.text.trim().isEmpty) {
       _showErrorDialog('Please enter a friend\'s name');
@@ -681,6 +711,42 @@ class _EditFriendScreenState extends State<EditFriendScreen> {
     }
 
     try {
+      // Save image permanently if a new one was selected
+      String? imagePath;
+      if (_selectedImage != null) {
+        // Check if this is a new image (not the existing one)
+        if (_selectedImage!.path != widget.friend.imagePath) {
+          imagePath = await _saveImagePermanently(_selectedImage!);
+
+          // Delete the old image if it exists
+          if (widget.friend.imagePath != null && widget.friend.imagePath!.isNotEmpty) {
+            try {
+              File? oldFile;
+
+              // Check if this is a relative path
+              if (widget.friend.imagePath!.startsWith('friend_images/')) {
+                final Directory appDocDir = await getApplicationDocumentsDirectory();
+                final fullPath = '${appDocDir.path}/${widget.friend.imagePath}';
+                oldFile = File(fullPath);
+              } else {
+                // Absolute path
+                oldFile = File(widget.friend.imagePath!);
+              }
+
+              if (await oldFile.exists()) {
+                await oldFile.delete();
+                debugPrint('Deleted old image: ${oldFile.path}');
+              }
+            } catch (e) {
+              debugPrint('Error deleting old image: $e');
+            }
+          }
+        } else {
+          // Keep the existing path if it hasn't changed
+          imagePath = widget.friend.imagePath;
+        }
+      }
+
       List<Holiday> holidays = _addedHolidays.map((holidayMap) {
         return Holiday.create(
           type: holidayMap['type'],
@@ -690,7 +756,7 @@ class _EditFriendScreenState extends State<EditFriendScreen> {
       }).toList();
 
       widget.friend.updateName(_nameController.text.trim());
-      widget.friend.updateImagePath(_selectedImage?.path);
+      widget.friend.updateImagePath(imagePath);
       widget.friend.updateNote(_noteController.text.trim().isEmpty ? null : _noteController.text.trim());
 
       widget.friend.holidays.clear();

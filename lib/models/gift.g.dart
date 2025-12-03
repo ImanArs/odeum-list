@@ -26,13 +26,15 @@ class GiftAdapter extends TypeAdapter<Gift> {
       isPurchased: fields[6] as bool,
       createdAt: fields[7] as DateTime,
       targetDate: fields[8] as DateTime?,
+      friendId: fields[9] as String?,
+      holidayTag: fields[10] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, Gift obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -50,7 +52,11 @@ class GiftAdapter extends TypeAdapter<Gift> {
       ..writeByte(7)
       ..write(obj.createdAt)
       ..writeByte(8)
-      ..write(obj.targetDate);
+      ..write(obj.targetDate)
+      ..writeByte(9)
+      ..write(obj.friendId)
+      ..writeByte(10)
+      ..write(obj.holidayTag);
   }
 
   @override

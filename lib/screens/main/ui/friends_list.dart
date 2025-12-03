@@ -41,6 +41,7 @@ class FriendsList extends StatelessWidget {
               itemCount: friends.length,
               itemBuilder: (context, index) {
                 return FriendCard(
+                  key: ValueKey(friends[index].id + (friends[index].imagePath ?? '')),
                   friend: friends[index],
                   onTap: () {
                     Navigator.push(

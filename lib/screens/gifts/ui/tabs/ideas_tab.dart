@@ -38,29 +38,6 @@ class _IdeasTabState extends State<IdeasTab> {
           ),
           const Spacer(),
           const SizedBox(height: 40),
-          // Кнопка добавления идеи подарка
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  hasIdeas = true;
-                });
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Add gift idea',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
         ],
       ),
     );

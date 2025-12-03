@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../../../../models/friend.dart';
 import '../../../../models/holiday.dart';
 import '../../../../services/storage_service.dart';
@@ -658,6 +660,45 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
     );
   }
 
+  Future<String?> _saveImagePermanently(File imageFile) async {
+    try {
+      debugPrint('=== Saving image permanently ===');
+      debugPrint('Original image path: ${imageFile.path}');
+      debugPrint('Original file exists: ${imageFile.existsSync()}');
+
+      // Get the app documents directory (consistent with Hive storage)
+      final Directory appDir = await getApplicationDocumentsDirectory();
+      debugPrint('App documents directory: ${appDir.path}');
+
+      // Create a subfolder for friend images if it doesn't exist
+      final Directory imageDir = Directory('${appDir.path}/friend_images');
+      if (!await imageDir.exists()) {
+        await imageDir.create(recursive: true);
+        debugPrint('Created friend_images directory');
+      }
+
+      // Generate a unique filename using timestamp
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String extension = path.extension(imageFile.path);
+      final String newFileName = 'friend_$timestamp$extension';
+
+      // Copy the image to the permanent location
+      final String newPath = '${imageDir.path}/$newFileName';
+      debugPrint('Copying image to: $newPath');
+
+      final File newImage = await imageFile.copy(newPath);
+      debugPrint('Image copied successfully');
+      debugPrint('New file exists: ${newImage.existsSync()}');
+      debugPrint('New file size: ${newImage.lengthSync()} bytes');
+
+      // Return only the filename for relative path storage
+      return 'friend_images/$newFileName';
+    } catch (e) {
+      debugPrint('Error saving image permanently: $e');
+      return null;
+    }
+  }
+
   Future<void> _saveFriend() async {
     // Validate required fields
     if (_nameController.text.trim().isEmpty) {
@@ -666,6 +707,13 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
     }
 
     try {
+      // Save image permanently if one was selected
+      String? permanentImagePath;
+      if (_selectedImage != null) {
+        permanentImagePath = await _saveImagePermanently(_selectedImage!);
+        debugPrint('Permanent image path: $permanentImagePath');
+      }
+
       // Convert added holidays to Holiday models
       List<Holiday> holidays = _addedHolidays.map((holidayMap) {
         return Holiday.create(
@@ -678,13 +726,16 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
       // Create friend model
       final friend = Friend.create(
         name: _nameController.text.trim(),
-        imagePath: _selectedImage?.path,
+        imagePath: permanentImagePath,
         holidays: holidays,
         note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
       );
 
+      debugPrint('Created friend with imagePath: ${friend.imagePath}');
+
       // Save to Hive
       await StorageService.addFriend(friend);
+      debugPrint('Friend saved to storage');
 
       // Show success and go back
       if (mounted) {

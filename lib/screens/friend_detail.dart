@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:path_provider/path_provider.dart';
 import '../models/friend.dart';
+import '../services/storage_service.dart';
+import '../components/gift_card.dart';
 import 'edit_friend_screen.dart';
+import 'add_gift_screen.dart';
+import 'gift_detail_screen.dart';
 
 class FriendDetailScreen extends StatefulWidget {
   final Friend friend;
@@ -15,11 +21,47 @@ class FriendDetailScreen extends StatefulWidget {
 class _FriendDetailScreenState extends State<FriendDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  Uint8List? _imageBytes;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadImage();
+  }
+
+  void _loadImage() async {
+    if (widget.friend.imagePath != null && widget.friend.imagePath!.isNotEmpty) {
+      File? imageFile;
+
+      // Check if this is a relative path (new format)
+      if (widget.friend.imagePath!.startsWith('friend_images/')) {
+        try {
+          final Directory appDocDir = await getApplicationDocumentsDirectory();
+          final fullPath = '${appDocDir.path}/${widget.friend.imagePath}';
+          imageFile = File(fullPath);
+        } catch (e) {
+          debugPrint('Error constructing full path: $e');
+          return;
+        }
+      } else {
+        // Absolute path (old format)
+        imageFile = File(widget.friend.imagePath!);
+      }
+
+      if (imageFile.existsSync()) {
+        try {
+          final bytes = await imageFile.readAsBytes();
+          if (mounted) {
+            setState(() {
+              _imageBytes = bytes;
+            });
+          }
+        } catch (e) {
+          debugPrint('Error loading image: $e');
+        }
+      }
+    }
   }
 
   @override
@@ -243,6 +285,7 @@ class _FriendDetailScreenState extends State<FriendDetailScreen>
                 );
                 if (result == true && mounted) {
                   setState(() {});
+                  _loadImage(); // Reload image after edit
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -266,55 +309,88 @@ class _FriendDetailScreenState extends State<FriendDetailScreen>
   }
 
   Widget _buildGiftsTab() {
+    final gifts = StorageService.getGiftsForFriend(widget.friend.id);
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          // Alert block
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE5E5EA),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.error_outline,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'You don\'t have any added gifts yet. To add a gift, click on the "Add gifts" button',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black87,
-                      height: 1.4,
+          // Gifts list or empty state
+          if (gifts.isEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5E5EA),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 20,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'You don\'t have any added gifts yet. To add a gift, click on the "Add gifts" button',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const Spacer(),
+            const Spacer(),
+          ] else
+            Expanded(
+              child: ListView.builder(
+                itemCount: gifts.length,
+                itemBuilder: (context, index) {
+                  final gift = gifts[index];
+                  return GiftCard(
+                    gift: gift,
+                    onTap: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => GiftDetailScreen(gift: gift),
+                        ),
+                      );
+                      if (result == true && mounted) {
+                        setState(() {});
+                      }
+                    },
+                  );
+                },
+              ),
+            ),
           // Add gift button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
-                // Navigate to add gift screen
-                print('Add gift');
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddGiftScreen(friend: widget.friend),
+                  ),
+                );
+                if (result == true && mounted) {
+                  setState(() {});
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
@@ -338,16 +414,13 @@ class _FriendDetailScreenState extends State<FriendDetailScreen>
   }
 
   Widget _buildPhoto() {
-    if (widget.friend.imagePath != null &&
-        widget.friend.imagePath!.isNotEmpty) {
-      final imageFile = File(widget.friend.imagePath!);
-      if (imageFile.existsSync()) {
-        return Image.file(
-          imageFile,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
-        );
-      }
+    if (_imageBytes != null) {
+      return Image.memory(
+        _imageBytes!,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
+      );
     }
     return _buildDefaultAvatar();
   }

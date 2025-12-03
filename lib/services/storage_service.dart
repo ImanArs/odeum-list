@@ -84,6 +84,24 @@ class StorageService {
     await _giftsBox.delete(id);
   }
 
+  static List<Gift> getGiftsForFriend(String friendId) {
+    return _giftsBox.values
+        .where((gift) => gift.friendId == friendId)
+        .toList();
+  }
+
+  static List<Gift> getPurchasedGiftsForFriend(String friendId) {
+    return _giftsBox.values
+        .where((gift) => gift.friendId == friendId && gift.isPurchased)
+        .toList();
+  }
+
+  static List<Gift> getUnpurchasedGiftsForFriend(String friendId) {
+    return _giftsBox.values
+        .where((gift) => gift.friendId == friendId && !gift.isPurchased)
+        .toList();
+  }
+
   // Calendar Events
   static Future<void> addEvent(CalendarEvent event) async {
     await _eventsBox.put(event.id, event);

@@ -31,6 +31,12 @@ class Gift extends HiveObject {
   @HiveField(8)
   DateTime? targetDate;
 
+  @HiveField(9)
+  String? friendId;
+
+  @HiveField(10)
+  String? holidayTag;
+
   Gift({
     required this.id,
     required this.title,
@@ -41,6 +47,8 @@ class Gift extends HiveObject {
     this.isPurchased = false,
     required this.createdAt,
     this.targetDate,
+    this.friendId,
+    this.holidayTag,
   });
 
   factory Gift.create({
@@ -50,6 +58,8 @@ class Gift extends HiveObject {
     double? price,
     String? imageUrl,
     DateTime? targetDate,
+    String? friendId,
+    String? holidayTag,
   }) {
     return Gift(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -60,6 +70,8 @@ class Gift extends HiveObject {
       imageUrl: imageUrl,
       createdAt: DateTime.now(),
       targetDate: targetDate,
+      friendId: friendId,
+      holidayTag: holidayTag,
     );
   }
 
